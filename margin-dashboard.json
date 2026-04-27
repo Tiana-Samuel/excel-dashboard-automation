@@ -1,0 +1,200 @@
+name: Blank snippet
+description: Create a new snippet from a blank template.
+host: EXCEL
+api_set: {}
+script:
+  content: |
+    Excel.run(async (context) => {
+      // Target the Dashboard sheet
+      const sheet = context.workbook.worksheets.getItem("Dashboard");
+
+      // ==========================================
+      // DATA TABLE FORMULAS (Steps 1 - 14)
+      // ==========================================
+      let formulasC = [];
+      let formulasD = [];
+      let formulasE = [];
+      let formulasF = [];
+      let formulasG = [];
+
+      for (let i = 8; i <= 39; i++) {
+        // Step 1: Total Revenue (SUMIFS)
+        formulasC.push([`=SUMIFS('Raw Data'!E:E, 'Raw Data'!D:D, A${i}, 'Raw Data'!B:B, LEFT(B${i},4), 'Raw Data'!C:C, RIGHT(B${i},2))`]);
+
+        // Step 4: Weighted Average Margin (SUMPRODUCT)
+        formulasD.push([`=SUMPRODUCT(('Raw Data'!$D$2:$D$500=A${i})*('Raw Data'!$B$2:$B$500&" "&'Raw Data'!$C$2:$C$500=B${i})*('Raw Data'!$G$2:$G$500))/C${i}`]);
+
+        // Step 7: Rolling 3-Month Trend (IF)
+        formulasE.push([`=IF(B${i}="2023 Q1", "N/A", D${i}-D${i - 1})`]);
+
+        // Step 10: YoY Margin Delta (IF/INDEX/MATCH)
+        formulasF.push([`=IF(LEFT(B${i}, 4)="2023", "N/A", D${i} - INDEX($D$8:$D$39, MATCH(1, ($A$8:$A$39=A${i}) * ($B$8:$B$39=(LEFT(B${i}, 4)-1)&RIGHT(B${i}, 3)), 0)))`]);
+
+        // Step 13: Margin Health Classification (Nested IF)
+        formulasG.push([`=IF(D${i}>0.35, "Strong", IF(D${i}>=0.2, "Moderate", "At Risk"))`]);
+      }
+
+      // Apply all formulas to the grid in bulk (Steps 3, 6, 9, 12, 14)
+      sheet.getRange("C8:C39").formulas = formulasC;
+      sheet.getRange("D8:D39").formulas = formulasD;
+      sheet.getRange("E8:E39").formulas = formulasE;
+      sheet.getRange("F8:F39").formulas = formulasF;
+      sheet.getRange("G8:G39").formulas = formulasG;
+
+      // Apply number formatting (Steps 2, 5, 8, 11)
+      sheet.getRange("C8:C39").numberFormat = "$#,##0"; // Currency, 0 decimals
+      sheet.getRange("D8:F39").numberFormat = "0.0%";   // Percentage, 1 decimal
+
+      // ==========================================
+      // CONDITIONAL FORMATTING (Step 15)
+      // ==========================================
+      const healthRange = sheet.getRange("G8:G39");
+      healthRange.conditionalFormats.clearAll();
+
+      // Strong -> Green Fill
+      let strongFormat = healthRange.conditionalFormats.add(Excel.ConditionalFormatType.cellValue);
+      strongFormat.cellValue.rule = { operator: Excel.ConditionalCellValueOperator.equalTo, formula1: '="Strong"' };
+      strongFormat.cellValue.format.fill.color = "#00B050";
+
+      // Moderate -> Yellow Fill
+      let modFormat = healthRange.conditionalFormats.add(Excel.ConditionalFormatType.cellValue);
+      modFormat.cellValue.rule = { operator: Excel.ConditionalCellValueOperator.equalTo, formula1: '="Moderate"' };
+      modFormat.cellValue.format.fill.color = "#FFC000";
+
+      // At Risk -> Red Fill
+      let riskFormat = healthRange.conditionalFormats.add(Excel.ConditionalFormatType.cellValue);
+      riskFormat.cellValue.rule = { operator: Excel.ConditionalCellValueOperator.equalTo, formula1: '="At Risk"' };
+      riskFormat.cellValue.format.fill.color = "#FF0000";
+
+
+      // ==========================================
+      // CHART DATA SECTION (Steps 16 - 25)
+      // ==========================================
+      // Step 16: Section Label
+      sheet.getRange("A42").values = [["Chart Data"]];
+
+      // Step 17: Column Headers
+      const headers = [["Quarter", "Widget Pro", "Widget Standard", "Service Package", "Accessory Kit", "Total Revenue"]];
+      sheet.getRange("A43:F43").values = headers;
+
+      // Step 18: Quarter Labels
+      const quarters = [
+        ["2023 Q1"], ["2023 Q2"], ["2023 Q3"], ["2023 Q4"],
+        ["2024 Q1"], ["2024 Q2"], ["2024 Q3"], ["2024 Q4"]
+      ];
+      sheet.getRange("A44:A51").values = quarters;
+
+      // Steps 19 - 24: Chart Summary Formulas
+      let chartFormulas = [];
+      for (let r = 44; r <= 51; r++) {
+        chartFormulas.push([
+          `=SUMPRODUCT(($A$8:$A$39=B$43)*($B$8:$B$39=$A${r})*($D$8:$D$39))`, // Widget Pro
+          `=SUMPRODUCT(($A$8:$A$39=C$43)*($B$8:$B$39=$A${r})*($D$8:$D$39))`, // Widget Standard
+          `=SUMPRODUCT(($A$8:$A$39=D$43)*($B$8:$B$39=$A${r})*($D$8:$D$39))`, // Service Package
+          `=SUMPRODUCT(($A$8:$A$39=E$43)*($B$8:$B$39=$A${r})*($D$8:$D$39))`, // Accessory Kit
+          `=SUMIF($B$8:$B$39, $A${r}, $C$8:$C$39)` // Total Revenue
+        ]);
+      }
+      sheet.getRange("B44:F51").formulas = chartFormulas;
+
+      // Step 25: Format summary percentages
+      sheet.getRange("B44:E51").numberFormat = "0.0%";
+
+
+      // ==========================================
+      // CHART CREATION (Steps 27 - 34)
+      // ==========================================
+      // Steps 27 - 28: Insert Clustered Column Chart
+      const chartDataRange = sheet.getRange("A43:F51");
+      let chart = sheet.charts.add(Excel.ChartType.columnClustered, chartDataRange, Excel.ChartSeriesBy.columns);
+
+      // Steps 29 - 30: Modify Total Revenue Series
+      let totalRevSeries = chart.series.getItemAt(4); // Index 4 represents the 5th column of data (Total Revenue)
+      totalRevSeries.axisGroup = Excel.ChartAxisGroup.secondary;
+      totalRevSeries.chartType = Excel.ChartType.line;
+
+      // Step 31: Chart Title
+      chart.title.text = "Quarterly Margin Trends by Product";
+      chart.title.visible = true;
+
+      // Steps 32 - 33: Axis Titles
+      chart.axes.valueAxis.title.text = "Profit Margin";
+      chart.axes.valueAxis.title.visible = true;
+
+      let secondaryAxis = chart.axes.getItem(Excel.ChartAxisType.value, Excel.ChartAxisGroup.secondary);
+      secondaryAxis.title.text = "Total Revenue ($)";
+      secondaryAxis.title.visible = true;
+
+      // Step 34: Position and Resize Chart
+      chart.setPosition("A53", "H75");
+
+      // Execute all commands
+      await context.sync();
+    });
+  language: typescript
+template:
+  content: <button id="run">Run</button>
+  language: html
+style:
+  content: |-
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+        padding: 10px;
+    }
+
+    section {
+        margin-bottom: 20px;
+    }
+
+    h3 {
+        margin-top: 0;
+        margin-bottom: 10px;
+        font-size: 16px;
+    }
+
+    p {
+        margin: 0 0 10px 0;
+    }
+
+    button {
+        background-color: #f0f0f0;
+        color: #333333;
+        border: 1px solid #8a8a8a;
+        padding: 8px 16px;
+        font-size: 14px;
+        cursor: pointer;
+        border-radius: 2px;
+        margin-left: 20px;
+        margin-bottom: 5px;
+        min-width: 80px;
+        display: block;
+    }
+
+    button:hover {
+        background-color: #e0e0e0;
+    }
+
+    button:active {
+        background-color: #d0d0d0;
+    }
+
+    input {
+        padding: 8px;
+        margin: 5px 0;
+        border: 1px solid #ccc;
+        border-radius: 2px;
+        font-size: 14px;
+    }
+
+    .header {
+        text-align: center;
+        background-color: #f3f2f1;
+        padding: 10px;
+    }
+  language: css
+libraries: >-
+  https://appsforoffice.microsoft.com/lib/1/hosted/office.js
+
+  https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/master/types/office-js/index.d.ts
