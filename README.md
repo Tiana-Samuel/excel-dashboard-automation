@@ -136,3 +136,13 @@ After execution, the `Dashboard` sheet contains:
 
 - `margin-dashboard.json` – the complete Script Lab snippet
 - `README.md` – this project documentation
+
+## How to Run the Automation
+
+1. Open the Excel file (`sample-data.xlsx`)
+2. Install Script Lab (Excel Add-in)
+3. Open Script Lab → Import
+4. Upload `margin-dashboard.json`
+5. Click Run
+
+The dashboard will be generated automatically.
